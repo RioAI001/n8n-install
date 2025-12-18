@@ -14,22 +14,22 @@ Outcome: Installer captures proxy/TLS choices, generates hashes locally, and sca
 
 ### Story 1.1 – Add Proxy/TLS Env Inputs
 
-- [ ] Update `.env.example` with the keys listed in `file-change-map.md` (REVERSE_PROXY, TLS_MODE, etc.).
-- [ ] Extend `scripts/03_generate_secrets.sh` prompts using `sample-scripts/proxy_selection_flow.sh` flow.
-- [ ] Ensure values persist/reload on rerun (reuse `generated_values` logic).
+- [x] Update `.env.example` with the keys listed in `file-change-map.md` (REVERSE_PROXY, TLS_MODE, etc.).
+- [x] Extend `scripts/03_generate_secrets.sh` prompts using `sample-scripts/proxy_selection_flow.sh` flow.
+- [x] Ensure values persist/reload on rerun (reuse `generated_values` logic).
 
 ### Story 1.2 – Implement Local CA + Hash Helpers
 
-- [ ] Swap `generate_bcrypt_hash` to the Python bcrypt helper described in `migration-plan.md`.
-- [ ] Remove the Caddy apt install/uninstall block from `03_generate_secrets.sh`.
-- [ ] Add `ensure_local_ca` helper (mkcert/openssl fallback) per `file-change-map.md` snippet.
-- [ ] Document host trust instructions (Ubuntu/macOS/Windows) in script output or README.
+- [x] Swap `generate_bcrypt_hash` to the Python bcrypt helper described in `migration-plan.md`.
+- [x] Remove the Caddy apt install/uninstall block from `03_generate_secrets.sh`.
+- [x] Add `ensure_local_ca` helper (mkcert/openssl fallback) per `file-change-map.md` snippet.
+- [x] Document host trust instructions (Ubuntu/macOS/Windows) in script output or README.
 
 ### Story 1.3 – Render Proxy Config Templates
 
-- [ ] Create template locations (`./traefik/traefik.yml`, `./traefik/traefik.dynamic.yml`, `templates/Caddyfile.tpl`).
-- [ ] Wire `03_generate_secrets.sh` to render the appropriate config(s) based on `REVERSE_PROXY`.
-- [ ] Validate generated files exist and log paths for the user.
+- [x] Create template locations (`./traefik/traefik.yml`, `./traefik/traefik.dynamic.yml`, `templates/Caddyfile.tpl`).
+- [x] Wire `03_generate_secrets.sh` to render the appropriate config(s) based on `REVERSE_PROXY`.
+- [x] Validate generated files exist and log paths for the user.
 
 ---
 

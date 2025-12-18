@@ -9,6 +9,7 @@ source "$(dirname "$0")/utils.sh"
 init_paths
 
 OUTPUT_FILE="$PROJECT_ROOT/welcome/data.json"
+BASE_SCHEME=$([[ "${TLS_MODE}" == "public" || "${TLS_MODE}" == "local" ]] && echo "https" || echo "http")
 
 # Load environment variables from .env file
 load_env || exit 1
@@ -497,6 +498,9 @@ done
 cat > "$OUTPUT_FILE" << EOF
 {
   "domain": "$(json_escape "$USER_DOMAIN_NAME")",
+  "proxy": "$(json_escape "${REVERSE_PROXY:-caddy}")",
+  "tls_mode": "$(json_escape "${TLS_MODE:-public}")",
+  "certificate_hint": "$(json_escape "${TLS_MODE:-}" == "local" && echo "Install local CA: ${LOCAL_CA_CERT:-certs/local-ca.pem}" || echo "")",
   "generated_at": "$GENERATED_AT",
   "services": {
 $SERVICES_JSON

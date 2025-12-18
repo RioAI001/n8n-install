@@ -103,8 +103,8 @@ Outcome: User-facing artifacts reflect the new proxy/TLS capabilities and guide 
 
 ### Story 5.1 – Welcome Page & Final Report
 
-- [ ] Adapt `scripts/generate_welcome_page.sh` to record `proxy`, `tls_mode`, and `certificate_hint`.
-- [ ] Update `scripts/07_final_report.sh` to show scheme derived from `TLS_MODE` and highlight local CA trust steps when applicable.
+- [x] Adapt `scripts/generate_welcome_page.sh` to record `proxy`, `tls_mode`, and `certificate_hint`.
+- [x] Update `scripts/07_final_report.sh` to show scheme derived from `TLS_MODE` and highlight local CA trust steps when applicable.
 
 ### Story 5.2 – README / CLAUDE / Cloudflare Docs
 

@@ -34,10 +34,90 @@ trap cleanup_temp_files EXIT
 
 # Check for openssl
 require_command "openssl" "Please ensure openssl is installed and available in your PATH."
+require_command "python3" "Python 3 is required to generate bcrypt hashes."
 
 # --- Configuration ---
 TEMPLATE_FILE="$PROJECT_ROOT/.env.example"
 OUTPUT_FILE="$PROJECT_ROOT/.env"
+
+render_template_file() {
+    local src="$1"
+    local dest="$2"
+
+    require_file "$src" "Template missing: $src"
+    mkdir -p "$(dirname "$dest")"
+    cp "$src" "$dest"
+}
+
+ensure_local_ca() {
+    local cert_path="$LOCAL_CA_CERT"
+    local key_path="$LOCAL_CA_KEY"
+
+    [[ "$cert_path" != /* ]] && cert_path="$PROJECT_ROOT/$cert_path"
+    [[ "$key_path" != /* ]] && key_path="$PROJECT_ROOT/$key_path"
+
+    mkdir -p "$(dirname "$cert_path")" "$(dirname "$key_path")"
+
+    if [[ -s "$cert_path" && -s "$key_path" ]]; then
+        log_info "Local CA assets already present; skipping generation."
+        LOCAL_CA_CERT_RESOLVED="$cert_path"
+        LOCAL_CA_KEY_RESOLVED="$key_path"
+        return
+    fi
+
+    if command -v mkcert >/dev/null 2>&1; then
+        log_info "Generating local CA and wildcard certificate with mkcert for $WILDCARD_DOMAIN"
+        mkcert -install
+        mkcert -key-file "$key_path" -cert-file "$cert_path" "$WILDCARD_DOMAIN"
+    else
+        log_warning "mkcert not found. Falling back to OpenSSL self-signed CA for $WILDCARD_DOMAIN"
+        openssl req -x509 -nodes -days 3650 \
+          -newkey rsa:4096 \
+          -keyout "$key_path" \
+          -out "$cert_path" \
+          -subj "/CN=${WILDCARD_DOMAIN}"
+    fi
+
+    chmod 600 "$key_path" "$cert_path" 2>/dev/null || true
+    LOCAL_CA_CERT_RESOLVED="$cert_path"
+    LOCAL_CA_KEY_RESOLVED="$key_path"
+}
+
+print_local_ca_trust_instructions() {
+    log_box "Local TLS enabled. Trust the generated CA to avoid browser warnings."
+    echo ""
+    local cert_hint="${LOCAL_CA_CERT_RESOLVED:-$LOCAL_CA_CERT}"
+    echo "Ubuntu/Debian: sudo cp ${cert_hint} /usr/local/share/ca-certificates/localai.crt && sudo update-ca-certificates"
+    echo "macOS: sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ${cert_hint}"
+    echo "Windows (PowerShell admin): certutil -addstore Root ${cert_hint}"
+}
+
+ensure_traefik_acme_storage() {
+    local storage_path="${TRAEFIK_ACME_STORAGE:-traefik/acme.json}"
+
+    [[ "$storage_path" != /* ]] && storage_path="$PROJECT_ROOT/$storage_path"
+    mkdir -p "$(dirname "$storage_path")"
+    touch "$storage_path"
+    chmod 600 "$storage_path" 2>/dev/null || true
+    log_info "Ensured Traefik ACME storage at $storage_path"
+}
+
+generate_proxy_configs() {
+    local proxy_choice="$1"
+
+    if [[ "$proxy_choice" == "traefik" ]]; then
+        render_template_file "$PROJECT_ROOT/templates/traefik.yml.tpl" "$PROJECT_ROOT/traefik/traefik.yml"
+        render_template_file "$PROJECT_ROOT/templates/traefik.dynamic.yml.tpl" "$PROJECT_ROOT/traefik/traefik.dynamic.yml"
+        ensure_traefik_acme_storage
+        log_success "Traefik configuration files generated in $PROJECT_ROOT/traefik"
+    else
+        render_template_file "$PROJECT_ROOT/templates/Caddyfile.tpl" "$PROJECT_ROOT/Caddyfile"
+        log_success "Caddyfile rendered to $PROJECT_ROOT/Caddyfile"
+    fi
+
+    REVERSE_PROXY="$proxy_choice"
+    require_proxy_config
+}
 
 # Variables to generate: varName="type:length"
 # Types: password (alphanum), secret (base64), hex, base64, alphanum
@@ -118,83 +198,108 @@ if [ -f "$OUTPUT_FILE" ]; then
     done < "$OUTPUT_FILE"
 fi
 
-# Install Caddy
-log_subheader "Installing Caddy"
-log_info "Adding Caddy repository and installing..."
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --yes --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
-apt install -y caddy
-
-# Check for caddy
-require_command "caddy" "Caddy installation failed. Please check the installation logs above."
+# Pre-populate generated_values with non-empty values from existing_env_vars
+for key_from_existing in "${!existing_env_vars[@]}"; do
+    if [[ -n "${existing_env_vars[$key_from_existing]}" ]]; then
+        generated_values["$key_from_existing"]="${existing_env_vars[$key_from_existing]}"
+    fi
+done
 
 require_whiptail
 
+log_subheader "Proxy and TLS Selection"
+DEFAULT_PROXY="${generated_values[REVERSE_PROXY]:-${existing_env_vars[REVERSE_PROXY]:-caddy}}"
+DEFAULT_TLS_MODE="${generated_values[TLS_MODE]:-${existing_env_vars[TLS_MODE]:-public}}"
+
+PROXY_CHOICE=$(wt_radiolist "Reverse Proxy" "Choose which proxy to configure." "$DEFAULT_PROXY" \
+    "caddy" "Use the existing Caddy-based setup (default)" ON \
+    "traefik" "Switch to Traefik (Docker + file providers)" OFF) || exit 1
+
+TLS_MODE_CHOICE=$(wt_radiolist "TLS Mode" "How should certificates be handled?" "$DEFAULT_TLS_MODE" \
+    "public" "Public ACME/Let's Encrypt" ON \
+    "local" "Local CA + wildcard cert (for homelab domains)" OFF) || exit 1
+
+REVERSE_PROXY="$PROXY_CHOICE"
+TLS_MODE="$TLS_MODE_CHOICE"
+generated_values["REVERSE_PROXY"]="$PROXY_CHOICE"
+generated_values["TLS_MODE"]="$TLS_MODE_CHOICE"
+
 # Prompt for the domain name
 log_subheader "Domain Configuration"
-DOMAIN="" # Initialize DOMAIN variable
+DOMAIN="${generated_values[USER_DOMAIN_NAME]:-${existing_env_vars[USER_DOMAIN_NAME]:-}}"
 
-# Try to get domain from existing .env file first
-# Check if USER_DOMAIN_NAME is set in existing_env_vars and is not empty
-if [[ ${existing_env_vars[USER_DOMAIN_NAME]+_} && -n "${existing_env_vars[USER_DOMAIN_NAME]}" ]]; then
-    DOMAIN="${existing_env_vars[USER_DOMAIN_NAME]}"
-    # Ensure this value is carried over to generated_values for writing and template processing
-    # If it came from existing_env_vars, it might already be there, but this ensures it.
-    generated_values["USER_DOMAIN_NAME"]="$DOMAIN"
-else
-    while true; do
-        DOMAIN_INPUT=$(wt_input "Primary Domain" "Enter the primary domain name for your services (e.g., example.com)." "") || true
+while true; do
+    DOMAIN_INPUT=$(wt_input "Primary Domain" "Enter the primary domain name for your services (e.g., example.com or homelab.lan)." "$DOMAIN") || true
+    DOMAIN_TO_USE="$DOMAIN_INPUT"
 
-        DOMAIN_TO_USE="$DOMAIN_INPUT" # Direct assignment, no default fallback
+    if [[ -z "$DOMAIN_TO_USE" ]]; then
+        wt_msg "Validation" "Domain name cannot be empty."
+        continue
+    fi
 
-        # Validate domain input
-        if [[ -z "$DOMAIN_TO_USE" ]]; then
-            wt_msg "Validation" "Domain name cannot be empty."
-            continue
-        fi
+    if [[ "$DOMAIN_TO_USE" =~ [^a-zA-Z0-9.-] ]]; then
+        wt_msg "Validation" "Warning: Domain contains potentially invalid characters: '$DOMAIN_TO_USE'"
+    fi
 
-        # Basic check for likely invalid domain characters (very permissive)
-        if [[ "$DOMAIN_TO_USE" =~ [^a-zA-Z0-9.-] ]]; then
-            wt_msg "Validation" "Warning: Domain contains potentially invalid characters: '$DOMAIN_TO_USE'"
-        fi
-        if wt_yesno "Confirm Domain" "Use '$DOMAIN_TO_USE' as the primary domain?" "yes"; then
-            DOMAIN="$DOMAIN_TO_USE" # Set the final DOMAIN variable
-            generated_values["USER_DOMAIN_NAME"]="$DOMAIN" # Using USER_DOMAIN_NAME
-            log_info "Domain set to '$DOMAIN'. It will be saved in .env."
-            break # Confirmed, exit loop
-        fi
-    done
+    if wt_yesno "Confirm Domain" "Use '$DOMAIN_TO_USE' as the primary domain?" "yes"; then
+        DOMAIN="$DOMAIN_TO_USE"
+        generated_values["USER_DOMAIN_NAME"]="$DOMAIN"
+        log_info "Domain set to '$DOMAIN'. It will be saved in .env."
+        break
+    fi
+done
+
+local_wildcard_default="*.${DOMAIN}"
+if [[ -z "${generated_values[WILDCARD_DOMAIN]}" ]]; then
+    generated_values["WILDCARD_DOMAIN"]="$local_wildcard_default"
 fi
 
-# Prompt for user email
+generated_values["LOCAL_CA_CERT"]="${generated_values[LOCAL_CA_CERT]:-${existing_env_vars[LOCAL_CA_CERT]:-certs/local-ca.pem}}"
+generated_values["LOCAL_CA_KEY"]="${generated_values[LOCAL_CA_KEY]:-${existing_env_vars[LOCAL_CA_KEY]:-certs/local-ca-key.pem}}"
+generated_values["TRAEFIK_ACME_STORAGE"]="${generated_values[TRAEFIK_ACME_STORAGE]:-${existing_env_vars[TRAEFIK_ACME_STORAGE]:-traefik/acme.json}}"
+generated_values["TRAEFIK_CERT_RESOLVER"]="${generated_values[TRAEFIK_CERT_RESOLVER]:-${existing_env_vars[TRAEFIK_CERT_RESOLVER]:-acme}}"
+
+if [[ "$TLS_MODE_CHOICE" == "local" ]]; then
+    WILDCARD_INPUT=$(wt_input "Wildcard CN" "Wildcard certificate CN" "${generated_values[WILDCARD_DOMAIN]}") || true
+    if [[ -n "$WILDCARD_INPUT" ]]; then
+        generated_values["WILDCARD_DOMAIN"]="$WILDCARD_INPUT"
+    fi
+fi
+
+# Prompt for user email (used for ACME + default service logins)
 log_subheader "Email Configuration"
-if [[ -z "${existing_env_vars[LETSENCRYPT_EMAIL]}" ]]; then
-    wt_msg "Email Required" "Please enter your email address. It will be used for logins and Let's Encrypt SSL."
+DEFAULT_EMAIL="${generated_values[ACME_EMAIL]:-${generated_values[LETSENCRYPT_EMAIL]:-${existing_env_vars[ACME_EMAIL]:-${existing_env_vars[LETSENCRYPT_EMAIL]}}}}"
+
+if [[ -z "$DEFAULT_EMAIL" ]]; then
+    wt_msg "Email Required" "Please enter your email address. It will be used for login defaults and Let's Encrypt/ACME registration."
 fi
 
-if [[ -n "${existing_env_vars[LETSENCRYPT_EMAIL]}" ]]; then
-    USER_EMAIL="${existing_env_vars[LETSENCRYPT_EMAIL]}"
-else
-    while true; do
-        USER_EMAIL=$(wt_input "Email" "Enter your email address." "") || true
+while true; do
+    USER_EMAIL=$(wt_input "Email" "Enter your email address." "$DEFAULT_EMAIL") || true
 
-        # Validate email input
-        if [[ -z "$USER_EMAIL" ]]; then
-            wt_msg "Validation" "Email cannot be empty."
-            continue
-        fi
+    if [[ -z "$USER_EMAIL" ]]; then
+        wt_msg "Validation" "Email cannot be empty."
+        continue
+    fi
 
-        # Basic email format validation
-        if [[ ! "$USER_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
-            wt_msg "Validation" "Warning: Email format appears to be invalid: '$USER_EMAIL'"
-        fi
-        if wt_yesno "Confirm Email" "Use '$USER_EMAIL' as your email?" "yes"; then
-            break # Confirmed, exit loop
-        fi
-    done
+    if [[ ! "$USER_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+        wt_msg "Validation" "Warning: Email format appears to be invalid: '$USER_EMAIL'"
+    fi
+    if wt_yesno "Confirm Email" "Use '$USER_EMAIL' as your email?" "yes"; then
+        break
+    fi
+done
+
+generated_values["ACME_EMAIL"]="$USER_EMAIL"
+generated_values["LETSENCRYPT_EMAIL"]="$USER_EMAIL"
+
+if [[ "$TLS_MODE_CHOICE" == "local" ]]; then
+    LOCAL_CA_CERT="${generated_values[LOCAL_CA_CERT]}"
+    LOCAL_CA_KEY="${generated_values[LOCAL_CA_KEY]}"
+    WILDCARD_DOMAIN="${generated_values[WILDCARD_DOMAIN]}"
+    ensure_local_ca
+    print_local_ca_trust_instructions
 fi
-
-
 
 log_subheader "Secret Generation"
 log_info "Generating secrets and creating .env file..."
@@ -235,13 +340,6 @@ if [ ! -f "$TEMPLATE_FILE" ]; then
     exit 1
 fi
 
-# Pre-populate generated_values with non-empty values from existing_env_vars
-for key_from_existing in "${!existing_env_vars[@]}"; do
-    if [[ -n "${existing_env_vars[$key_from_existing]}" ]]; then
-        generated_values["$key_from_existing"]="${existing_env_vars[$key_from_existing]}"
-    fi
-done
-
 # Store user input values (potentially overwriting if user was re-prompted and gave new input)
 generated_values["FLOWISE_USERNAME"]="$USER_EMAIL"
 generated_values["DASHBOARD_USERNAME"]="$USER_EMAIL"
@@ -270,6 +368,14 @@ declare -A found_vars
 found_vars["FLOWISE_USERNAME"]=0
 found_vars["DASHBOARD_USERNAME"]=0
 found_vars["LETSENCRYPT_EMAIL"]=0
+found_vars["ACME_EMAIL"]=0
+found_vars["REVERSE_PROXY"]=0
+found_vars["TLS_MODE"]=0
+found_vars["WILDCARD_DOMAIN"]=0
+found_vars["LOCAL_CA_CERT"]=0
+found_vars["LOCAL_CA_KEY"]=0
+found_vars["TRAEFIK_ACME_STORAGE"]=0
+found_vars["TRAEFIK_CERT_RESOLVER"]=0
 found_vars["RUN_N8N_IMPORT"]=0
 found_vars["PROMETHEUS_USERNAME"]=0
 found_vars["SEARXNG_USERNAME"]=0
@@ -333,7 +439,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
             # This 'else' block is for lines from template not covered by existing values or VARS_TO_GENERATE.
             # Check if it is one of the user input vars - these are handled by found_vars later if not in template.
             is_user_input_var=0 # Reset for each line
-    user_input_vars=("FLOWISE_USERNAME" "DASHBOARD_USERNAME" "LETSENCRYPT_EMAIL" "RUN_N8N_IMPORT" "PROMETHEUS_USERNAME" "SEARXNG_USERNAME" "OPENAI_API_KEY" "LANGFUSE_INIT_USER_EMAIL" "N8N_WORKER_COUNT" "WEAVIATE_USERNAME" "NEO4J_AUTH_USERNAME" "COMFYUI_USERNAME" "RAGAPP_USERNAME" "PADDLEOCR_USERNAME" "LT_USERNAME" "LIGHTRAG_USERNAME" "WAHA_DASHBOARD_USERNAME" "WELCOME_USERNAME" "WHATSAPP_SWAGGER_USERNAME")
+    user_input_vars=("FLOWISE_USERNAME" "DASHBOARD_USERNAME" "LETSENCRYPT_EMAIL" "ACME_EMAIL" "REVERSE_PROXY" "TLS_MODE" "WILDCARD_DOMAIN" "LOCAL_CA_CERT" "LOCAL_CA_KEY" "TRAEFIK_ACME_STORAGE" "TRAEFIK_CERT_RESOLVER" "RUN_N8N_IMPORT" "PROMETHEUS_USERNAME" "SEARXNG_USERNAME" "OPENAI_API_KEY" "LANGFUSE_INIT_USER_EMAIL" "N8N_WORKER_COUNT" "WEAVIATE_USERNAME" "NEO4J_AUTH_USERNAME" "COMFYUI_USERNAME" "RAGAPP_USERNAME" "PADDLEOCR_USERNAME" "LT_USERNAME" "LIGHTRAG_USERNAME" "WAHA_DASHBOARD_USERNAME" "WELCOME_USERNAME" "WHATSAPP_SWAGGER_USERNAME")
             for uivar in "${user_input_vars[@]}"; do
                 if [[ "$varName" == "$uivar" ]]; then
                     is_user_input_var=1
@@ -415,7 +521,7 @@ if [[ -z "${generated_values[SERVICE_ROLE_KEY]}" ]]; then
 fi
 
 # Add any custom variables that weren't found in the template
-for var in "FLOWISE_USERNAME" "DASHBOARD_USERNAME" "LETSENCRYPT_EMAIL" "RUN_N8N_IMPORT" "OPENAI_API_KEY" "PROMETHEUS_USERNAME" "SEARXNG_USERNAME" "LANGFUSE_INIT_USER_EMAIL" "N8N_WORKER_COUNT" "WEAVIATE_USERNAME" "NEO4J_AUTH_USERNAME" "COMFYUI_USERNAME" "RAGAPP_USERNAME" "PADDLEOCR_USERNAME" "LT_USERNAME" "LIGHTRAG_USERNAME" "WAHA_DASHBOARD_USERNAME" "WELCOME_USERNAME" "WHATSAPP_SWAGGER_USERNAME" "DOCLING_USERNAME"; do
+for var in "FLOWISE_USERNAME" "DASHBOARD_USERNAME" "LETSENCRYPT_EMAIL" "ACME_EMAIL" "REVERSE_PROXY" "TLS_MODE" "WILDCARD_DOMAIN" "LOCAL_CA_CERT" "LOCAL_CA_KEY" "TRAEFIK_ACME_STORAGE" "TRAEFIK_CERT_RESOLVER" "RUN_N8N_IMPORT" "OPENAI_API_KEY" "PROMETHEUS_USERNAME" "SEARXNG_USERNAME" "LANGFUSE_INIT_USER_EMAIL" "N8N_WORKER_COUNT" "WEAVIATE_USERNAME" "NEO4J_AUTH_USERNAME" "COMFYUI_USERNAME" "RAGAPP_USERNAME" "PADDLEOCR_USERNAME" "LT_USERNAME" "LIGHTRAG_USERNAME" "WAHA_DASHBOARD_USERNAME" "WELCOME_USERNAME" "WHATSAPP_SWAGGER_USERNAME" "DOCLING_USERNAME"; do
     if [[ ${found_vars["$var"]} -eq 0 && ${generated_values[$var]+_} ]]; then
         # Before appending, check if it's already in TMP_ENV_FILE to avoid duplicates
         if ! grep -q -E "^${var}=" "$TMP_ENV_FILE"; then
@@ -514,7 +620,7 @@ fi
 _update_or_add_env_var "WAHA_API_KEY_PLAIN" "${generated_values[WAHA_API_KEY_PLAIN]}"
 _update_or_add_env_var "WAHA_API_KEY" "${generated_values[WAHA_API_KEY]}"
 
-# Hash passwords using caddy with bcrypt (consolidated loop)
+# Hash passwords using bcrypt helper (consolidated loop)
 SERVICES_NEEDING_HASH=("PROMETHEUS" "SEARXNG" "COMFYUI" "PADDLEOCR" "RAGAPP" "LT" "DOCLING" "WELCOME")
 
 for service in "${SERVICES_NEEDING_HASH[@]}"; do
@@ -536,10 +642,15 @@ for service in "${SERVICES_NEEDING_HASH[@]}"; do
     _update_or_add_env_var "$hash_var" "$existing_hash"
 done
 
-log_success ".env file generated successfully in the project root ($OUTPUT_FILE)."
+REVERSE_PROXY="${generated_values[REVERSE_PROXY]:-caddy}"
+TLS_MODE="${generated_values[TLS_MODE]:-public}"
+TRAEFIK_ACME_STORAGE="${generated_values[TRAEFIK_ACME_STORAGE]}"
+LOCAL_CA_CERT="${generated_values[LOCAL_CA_CERT]}"
+LOCAL_CA_KEY="${generated_values[LOCAL_CA_KEY]}"
 
-# Uninstall caddy
-apt remove -y caddy
+generate_proxy_configs "$REVERSE_PROXY"
+
+log_success ".env file generated successfully in the project root ($OUTPUT_FILE)."
 
 # Cleanup any .bak files
 cleanup_bak_files "$PROJECT_ROOT"

@@ -60,19 +60,19 @@ Outcome: Routing/auth data is structured and used to generate both proxy configs
 
 ### Story 3.1 – Convert Routing Table to Machine-Readable Form
 
-- [ ] Extract `service-routing-map.md` rows into `traefik/routing-map.yml` (YAML as per example).
-- [ ] Add parser in `scripts/03_generate_secrets.sh` or helper module to load the YAML.
+- [x] Extract `service-routing-map.md` rows into `traefik/routing-map.yml` (YAML as per example).
+- [x] Add parser in `scripts/03_generate_secrets.sh` or helper module to load the YAML.
 
 ### Story 3.2 – Generate Traefik Dynamic Config
 
-- [ ] Iterate routing map to create routers/services/middlewares (use `sample-scripts/traefik.dynamic.example.yml` as reference).
-- [ ] Ensure all basic-auth services consume `${XXX_USERNAME}`/`${XXX_PASSWORD_HASH}` variables.
-- [ ] Add TCP router for Neo4j Bolt with TLS passthrough.
+- [x] Iterate routing map to create routers/services/middlewares (use `sample-scripts/traefik.dynamic.example.yml` as reference).
+- [x] Ensure all basic-auth services consume `${XXX_USERNAME}`/`${XXX_PASSWORD_HASH}` variables.
+- [x] Add TCP router for Neo4j Bolt with TLS passthrough.
 
 ### Story 3.3 – Generate Caddyfile from Same Data
 
-- [ ] Render each hostname block from the routing map (preserve special cases like SearXNG headers).
-- [ ] Confirm parity with existing Caddyfile output via diff before deleting static version.
+- [x] Render each hostname block from the routing map (preserve special cases like SearXNG headers).
+- [x] Confirm parity with existing Caddyfile output via diff before deleting static version.
 
 ---
 

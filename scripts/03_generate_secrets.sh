@@ -39,6 +39,7 @@ require_command "python3" "Python 3 is required to generate bcrypt hashes."
 # --- Configuration ---
 TEMPLATE_FILE="$PROJECT_ROOT/.env.example"
 OUTPUT_FILE="$PROJECT_ROOT/.env"
+ROUTING_MAP_FILE="$PROJECT_ROOT/traefik/routing-map.yml"
 
 render_template_file() {
     local src="$1"
@@ -102,22 +103,287 @@ ensure_traefik_acme_storage() {
     log_info "Ensured Traefik ACME storage at $storage_path"
 }
 
+# START generate_proxy_configs
+
 generate_proxy_configs() {
     local proxy_choice="$1"
 
-    if [[ "$proxy_choice" == "traefik" ]]; then
-        render_template_file "$PROJECT_ROOT/templates/traefik.yml.tpl" "$PROJECT_ROOT/traefik/traefik.yml"
-        render_template_file "$PROJECT_ROOT/templates/traefik.dynamic.yml.tpl" "$PROJECT_ROOT/traefik/traefik.dynamic.yml"
-        ensure_traefik_acme_storage
-        log_success "Traefik configuration files generated in $PROJECT_ROOT/traefik"
-    else
-        render_template_file "$PROJECT_ROOT/templates/Caddyfile.tpl" "$PROJECT_ROOT/Caddyfile"
-        log_success "Caddyfile rendered to $PROJECT_ROOT/Caddyfile"
+    mkdir -p "$PROJECT_ROOT/traefik"
+
+    if [[ ! -f "$ROUTING_MAP_FILE" ]]; then
+        log_error "Routing map missing at $ROUTING_MAP_FILE."
+        exit 1
     fi
+
+    if [[ "$proxy_choice" == "traefik" ]]; then
+        ensure_traefik_acme_storage
+    fi
+
+    python3 - "$ROUTING_MAP_FILE" "$PROJECT_ROOT/Caddyfile" "$PROJECT_ROOT/traefik/traefik.dynamic.yml" "$PROJECT_ROOT/traefik/traefik.yml" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+map_path = Path(sys.argv[1])
+caddy_out = Path(sys.argv[2])
+traefik_dynamic_out = Path(sys.argv[3])
+traefik_static_out = Path(sys.argv[4])
+
+with map_path.open() as f:
+    routes = json.load(f)
+
+
+def yaml_dump(node, indent=0):
+    spaces = ' ' * indent
+    if isinstance(node, dict):
+        lines = []
+        for key, value in node.items():
+            if value is None:
+                continue
+            if isinstance(value, (dict, list)):
+                lines.append(f"{spaces}{key}:")
+                lines.append(yaml_dump(value, indent + 2))
+            else:
+                lines.append(f"{spaces}{key}: {json.dumps(value)}")
+        return "\n".join(lines)
+    if isinstance(node, list):
+        lines = []
+        for item in node:
+            if isinstance(item, (dict, list)):
+                lines.append(f"{spaces}-")
+                lines.append(yaml_dump(item, indent + 2))
+            else:
+                lines.append(f"{spaces}- {json.dumps(item)}")
+        return "\n".join(lines)
+    return f"{spaces}{json.dumps(node)}"
+
+
+http_middlewares = {}
+http_routers = {}
+http_services = {}
+tcp_routers = {}
+tcp_services = {}
+
+
+def add_basic_auth(entry):
+    name = f"auth-{entry['name']}"
+    http_middlewares[name] = {
+        "basicAuth": {
+            "users": [f"${{{entry['user_env']}:?}}:${{{entry['hash_env']}:?}}"]
+        }
+    }
+    return name
+
+
+for entry in routes:
+    protocol = entry.get("protocol", "http")
+
+    if protocol == "tcp":
+        service_name = f"{entry['name']}-svc"
+        tcp_services[service_name] = {
+            "loadBalancer": {
+                "servers": [
+                    {
+                        "address": entry["address"],
+                    }
+                ]
+            }
+        }
+        tcp_routers[entry["name"]] = {
+            "rule": f"HostSNI(`${{{entry['host_var']}}}`)",
+            "entryPoints": ["bolt"],
+            "service": service_name,
+            "tls": {
+                "passthrough": bool(entry.get("tls_passthrough", False))
+            },
+        }
+        continue
+
+    service_name = f"{entry['name']}-svc"
+    http_services[service_name] = {
+        "loadBalancer": {
+            "servers": [
+                {
+                    "url": entry["url"],
+                }
+            ]
+        }
+    }
+
+    middlewares = []
+    if entry.get("auth") == "basic":
+        middlewares.append(add_basic_auth(entry))
+    if entry.get("type") == "searxng":
+        middlewares.append("searxng-headers")
+
+    router_def = {
+        "rule": f"Host(`${{{entry['host_var']}}}`)",
+        "entryPoints": ["websecure"],
+        "service": service_name,
+        "tls": {"certResolver": "${TRAEFIK_CERT_RESOLVER:-acme}"},
+    }
+    if middlewares:
+        router_def["middlewares"] = middlewares
+
+    http_routers[entry["name"]] = router_def
+
+
+if any(entry.get("type") == "searxng" for entry in routes):
+    http_middlewares["searxng-headers"] = {
+        "headers": {
+            "customResponseHeaders": {
+                "Strict-Transport-Security": "max-age=31536000",
+                "X-Content-Type-Options": "nosniff",
+                "Referrer-Policy": "no-referrer",
+                "Permissions-Policy": "accelerometer=(),camera=(),geolocation=(),gyroscope=(),magnetometer=(),microphone=(),payment=(),usb=()",
+            }
+        }
+    }
+
+
+traefik_dynamic = {}
+if http_routers:
+    http_block = {
+        "routers": http_routers,
+        "services": http_services,
+    }
+    if http_middlewares:
+        http_block["middlewares"] = http_middlewares
+    traefik_dynamic["http"] = http_block
+
+if tcp_routers:
+    traefik_dynamic["tcp"] = {
+        "routers": tcp_routers,
+        "services": tcp_services,
+    }
+
+traefik_dynamic_out.write_text(
+    "# Generated from traefik/routing-map.yml\n" + yaml_dump(traefik_dynamic) + "\n",
+    encoding="utf-8",
+)
+
+traefik_static_out.write_text(
+    "# Generated static config for Traefik\n"
+    "global:\n  checkNewVersion: false\n  sendAnonymousUsage: false\n\n"
+    "log:\n  level: INFO\n\n"
+    "accessLog: {}\n\n"
+    "entryPoints:\n  web:\n    address: \":80\"\n  websecure:\n    address: \":443\"\n  bolt:\n    address: \":7687\"\n\n"
+    "providers:\n  docker:\n    exposedByDefault: false\n  file:\n    filename: /etc/traefik/traefik.dynamic.yml\n    watch: true\n\n"
+    "certificatesResolvers:\n  acme:\n    acme:\n      email: \"${ACME_EMAIL:-}\"\n      storage: \"/acme/acme.json\"\n      httpChallenge:\n        entryPoint: web\n\n"
+    "serversTransport:\n  insecureSkipVerify: true\n",
+    encoding="utf-8",
+)
+
+
+caddy_lines = [
+    "{",
+    "    email {$LETSENCRYPT_EMAIL}",
+    "}",
+    "",
+]
+
+
+def caddy_host(var):
+    return "{" + "$" + var + "}"
+
+
+for entry in routes:
+    protocol = entry.get("protocol", "http")
+
+    if entry.get("type") == "searxng":
+        host = caddy_host(entry["host_var"])
+        user_placeholder = "{" + "$" + entry["user_env"] + "}"
+        hash_placeholder = "{" + "$" + entry["hash_env"] + "}"
+        searx_block = """
+{host} {{
+    @protected not remote_ip 127.0.0.0/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10
+
+    basic_auth @protected {{
+        {user} {hash}
+    }}
+
+    encode zstd gzip
+
+    @api {{
+        path /config
+        path /healthz
+        path /stats/errors
+        path /stats/checker
+    }}
+    @search {{
+        path /search
+    }}
+    @imageproxy {{
+        path /image_proxy
+    }}
+    @static {{
+        path /static/*
+    }}
+
+    header {{
+        Content-Security-Policy "upgrade-insecure-requests; default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; form-action 'self' https://github.com/searxng/searxng/issues/new; font-src 'self'; frame-ancestors 'self'; base-uri 'self'; connect-src 'self' https://overpass-api.de; img-src * data:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.dailymotion.com https://www.deezer.com https://www.mixcloud.com https://w.soundcloud.com https://embed.spotify.com;"
+        Permissions-Policy "accelerometer=(),camera=(),geolocation=(),gyroscope=(),magnetometer=(),microphone=(),payment=(),usb=()"
+        Referrer-Policy "no-referrer"
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+        X-Robots-Tag "noindex, noarchive, nofollow"
+        -Server
+    }}
+
+    header @api {{
+        Access-Control-Allow-Methods "GET, OPTIONS"
+        Access-Control-Allow-Origin "*"
+    }}
+
+    route {{
+        header Cache-Control "max-age=0, no-store"
+        header @search Cache-Control "max-age=5, private"
+        header @imageproxy Cache-Control "max-age=604800, public"
+        header @static Cache-Control "max-age=31536000, public, immutable"
+    }}
+
+    reverse_proxy searxng:8080 {{
+        header_up X-Forwarded-Port {{http.request.port}}
+        header_up X-Real-IP {{http.request.remote.host}}
+        header_up Connection "close"
+    }}
+}}
+""".format(host=host, user=user_placeholder, hash=hash_placeholder)
+        caddy_lines.append(searx_block.strip("\n"))
+        caddy_lines.append("")
+        continue
+
+    if protocol == "tcp":
+        host = caddy_host(entry["host_var"])
+        caddy_lines.append(f"https://{host}:7687 {{")
+        caddy_lines.append(f"    reverse_proxy {entry['address']}")
+        caddy_lines.append("}")
+        caddy_lines.append("")
+        continue
+
+    host = caddy_host(entry["host_var"])
+    caddy_lines.append(f"{host} {{")
+
+    if entry.get("auth") == "basic":
+        caddy_lines.append("    basic_auth {")
+        caddy_lines.append(f"        {{${entry['user_env']}}} {{${entry['hash_env']}}}")
+        caddy_lines.append("    }")
+
+    caddy_lines.append(f"    reverse_proxy {entry['url']}")
+    caddy_lines.append("}")
+    caddy_lines.append("")
+
+
+caddy_lines.append("import /etc/caddy/addons/*.conf")
+
+caddy_out.write_text("\n".join(caddy_lines) + "\n", encoding="utf-8")
+PY
 
     REVERSE_PROXY="$proxy_choice"
     require_proxy_config
 }
+
+# END generate_proxy_configs
 
 # Variables to generate: varName="type:length"
 # Types: password (alphanum), secret (base64), hex, base64, alphanum

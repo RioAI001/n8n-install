@@ -74,7 +74,12 @@ echo ""
 log_subheader "Core Services"
 check_image_update "postgres" "postgres:${POSTGRES_VERSION:-17}-alpine"
 check_image_update "redis" "valkey/valkey:8-alpine"
-check_image_update "caddy" "caddy:2-alpine"
+
+if [[ "${REVERSE_PROXY:-caddy}" == "traefik" ]]; then
+    check_image_update "traefik" "traefik:v3.1"
+else
+    check_image_update "caddy" "caddy:2-alpine"
+fi
 
 # Check n8n if profile is active
 if is_profile_active "n8n"; then

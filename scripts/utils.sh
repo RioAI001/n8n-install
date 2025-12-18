@@ -414,6 +414,63 @@ update_compose_profiles() {
     echo "COMPOSE_PROFILES=${profiles}" >> "$env_file"
 }
 
+# Normalize and de-duplicate a comma-separated profiles list
+normalize_profiles() {
+    local profiles="$1"
+    local IFS=',' read -ra parts <<< "$profiles"
+    local -A seen=()
+    local ordered=()
+    for p in "${parts[@]}"; do
+        [[ -z "$p" ]] && continue
+        if [[ -z "${seen[$p]}" ]]; then
+            ordered+=("$p")
+            seen[$p]=1
+        fi
+    done
+    (IFS=','; echo "${ordered[*]}")
+}
+
+# Ensure the correct proxy profile is present and the alternative proxy profile is removed
+# Usage: ensure_proxy_profile [env_file]
+ensure_proxy_profile() {
+    local env_file="${1:-$ENV_FILE}"
+    ensure_file_exists "$env_file"
+
+    local current_profiles
+    current_profiles=$(read_env_var "COMPOSE_PROFILES" "$env_file")
+
+    local proxy_choice="${REVERSE_PROXY:-caddy}"
+    local target_profile="proxy-caddy"
+    local other_profile="proxy-traefik"
+    if [[ "$proxy_choice" == "traefik" ]]; then
+        target_profile="proxy-traefik"
+        other_profile="proxy-caddy"
+    fi
+
+    local IFS=',' read -ra parts <<< "$current_profiles"
+    local -A seen=()
+    local rebuilt=()
+
+    for p in "${parts[@]}"; do
+        [[ -z "$p" ]] && continue
+        if [[ "$p" == "$other_profile" ]]; then
+            continue
+        fi
+        if [[ -z "${seen[$p]}" ]]; then
+            rebuilt+=("$p")
+            seen[$p]=1
+        fi
+    done
+
+    if [[ -z "${seen[$target_profile]}" ]]; then
+        rebuilt+=("$target_profile")
+    fi
+
+    local normalized
+    normalized=$(normalize_profiles "$(IFS=','; echo "${rebuilt[*]}")")
+    update_compose_profiles "$normalized" "$env_file"
+}
+
 #=============================================================================
 # DEBIAN_FRONTEND MANAGEMENT
 #=============================================================================

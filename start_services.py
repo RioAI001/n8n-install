@@ -27,6 +27,20 @@ def is_dify_enabled():
     compose_profiles = env_values.get("COMPOSE_PROFILES", "")
     return "dify" in compose_profiles.split(',')
 
+
+def get_proxy_profile(env_values):
+    proxy_choice = env_values.get("REVERSE_PROXY", "caddy")
+    return "proxy-traefik" if proxy_choice == "traefik" else "proxy-caddy"
+
+
+def get_active_profiles(env_values):
+    compose_profiles = env_values.get("COMPOSE_PROFILES", "")
+    parts = [p.strip() for p in compose_profiles.split(',') if p.strip()]
+    proxy_profile = get_proxy_profile(env_values)
+    if proxy_profile not in parts:
+        parts.append(proxy_profile)
+    return parts
+
 def get_all_profiles(compose_file):
     """Get all profile names from a docker-compose file."""
     if not os.path.exists(compose_file):
@@ -175,6 +189,10 @@ def stop_existing_containers():
 
     # Get all profiles from the main docker-compose.yml to ensure all services can be brought down
     all_profiles = get_all_profiles("docker-compose.yml")
+    # Always include both proxy profiles to avoid orphaned proxy containers
+    for proxy_profile in ("proxy-caddy", "proxy-traefik"):
+        if proxy_profile not in all_profiles:
+            all_profiles.append(proxy_profile)
     for profile in all_profiles:
         cmd.extend(["--profile", profile])
 
@@ -222,6 +240,9 @@ def start_local_ai():
     """Start the local AI services (using its compose file)."""
     print("Starting local AI services...")
 
+    env_values = dotenv_values(".env")
+    profiles = get_active_profiles(env_values)
+
     # Build compose files list
     compose_files = ["-f", "docker-compose.yml"]
 
@@ -230,14 +251,18 @@ def start_local_ai():
     if os.path.exists(n8n_workers_compose_path):
         compose_files.extend(["-f", n8n_workers_compose_path])
 
+    profile_flags = []
+    for profile in profiles:
+        profile_flags.extend(["--profile", profile])
+
     # Explicitly build services and pull newer base images first.
     print("Checking for newer base images and building services...")
-    build_cmd = ["docker", "compose", "-p", "localai"] + compose_files + ["build", "--pull"]
+    build_cmd = ["docker", "compose", "-p", "localai"] + profile_flags + compose_files + ["build", "--pull"]
     run_command(build_cmd)
 
     # Now, start the services using the newly built images. No --build needed as we just built.
     print("Starting containers...")
-    up_cmd = ["docker", "compose", "-p", "localai"] + compose_files + ["up", "-d"]
+    up_cmd = ["docker", "compose", "-p", "localai"] + profile_flags + compose_files + ["up", "-d"]
     run_command(up_cmd)
 
 def generate_searxng_secret_key():

@@ -81,20 +81,20 @@ Outcome: install/update/start scripts honor proxy selection, generate configs, a
 
 ### Story 4.1 – Compose Profile Selection
 
-- [ ] Modify `scripts/install.sh` and `scripts/apply_update.sh` to append `proxy-caddy` or `proxy-traefik` to `COMPOSE_PROFILES`.
-- [ ] Ensure profile updates remain idempotent (no duplicate entries).
+- [x] Modify `scripts/install.sh` and `scripts/apply_update.sh` to append `proxy-caddy` or `proxy-traefik` to `COMPOSE_PROFILES`.
+- [x] Ensure profile updates remain idempotent (no duplicate entries).
 
 ### Story 4.2 – Service Launch Adjustments
 
-- [ ] Update `scripts/06_run_services.sh` to require the correct config files (see snippet in `file-change-map.md`) before running start scripts.
-- [ ] Integrate pre-flight validation: `caddy validate` or `traefik check --configfile /etc/traefik/traefik.yml`.
-- [ ] Update `start_services.py` to pass the proper `--profile` argument when invoking `docker compose`.
+- [x] Update `scripts/06_run_services.sh` to require the correct config files (see snippet in `file-change-map.md`) before running start scripts.
+- [x] Integrate pre-flight validation: `caddy validate` or `traefik check --configfile /etc/traefik/traefik.yml`.
+- [x] Update `start_services.py` to pass the proper `--profile` argument when invoking `docker compose`.
 
 ### Story 4.3 – Doctor & Update Preview Enhancements
 
-- [ ] Add proxy-aware health checks in `scripts/doctor.sh` (service running + config validation).
-- [ ] Modify `scripts/update_preview.sh` to check only the active proxy image.
-- [ ] When `TLS_MODE=local`, doctor should emit a reminder to trust the local CA.
+- [x] Add proxy-aware health checks in `scripts/doctor.sh` (service running + config validation).
+- [x] Modify `scripts/update_preview.sh` to check only the active proxy image.
+- [x] When `TLS_MODE=local`, doctor should emit a reminder to trust the local CA.
 
 ---
 

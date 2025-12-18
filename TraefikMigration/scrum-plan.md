@@ -14,22 +14,22 @@ Outcome: Installer captures proxy/TLS choices, generates hashes locally, and sca
 
 ### Story 1.1 – Add Proxy/TLS Env Inputs
 
-- [ ] Update `.env.example` with the keys listed in `file-change-map.md` (REVERSE_PROXY, TLS_MODE, etc.).
-- [ ] Extend `scripts/03_generate_secrets.sh` prompts using `sample-scripts/proxy_selection_flow.sh` flow.
-- [ ] Ensure values persist/reload on rerun (reuse `generated_values` logic).
+- [x] Update `.env.example` with the keys listed in `file-change-map.md` (REVERSE_PROXY, TLS_MODE, etc.).
+- [x] Extend `scripts/03_generate_secrets.sh` prompts using `sample-scripts/proxy_selection_flow.sh` flow.
+- [x] Ensure values persist/reload on rerun (reuse `generated_values` logic).
 
 ### Story 1.2 – Implement Local CA + Hash Helpers
 
-- [ ] Swap `generate_bcrypt_hash` to the Python bcrypt helper described in `migration-plan.md`.
-- [ ] Remove the Caddy apt install/uninstall block from `03_generate_secrets.sh`.
-- [ ] Add `ensure_local_ca` helper (mkcert/openssl fallback) per `file-change-map.md` snippet.
-- [ ] Document host trust instructions (Ubuntu/macOS/Windows) in script output or README.
+- [x] Swap `generate_bcrypt_hash` to the Python bcrypt helper described in `migration-plan.md`.
+- [x] Remove the Caddy apt install/uninstall block from `03_generate_secrets.sh`.
+- [x] Add `ensure_local_ca` helper (mkcert/openssl fallback) per `file-change-map.md` snippet.
+- [x] Document host trust instructions (Ubuntu/macOS/Windows) in script output or README.
 
 ### Story 1.3 – Render Proxy Config Templates
 
-- [ ] Create template locations (`./traefik/traefik.yml`, `./traefik/traefik.dynamic.yml`, `templates/Caddyfile.tpl`).
-- [ ] Wire `03_generate_secrets.sh` to render the appropriate config(s) based on `REVERSE_PROXY`.
-- [ ] Validate generated files exist and log paths for the user.
+- [x] Create template locations (`./traefik/traefik.yml`, `./traefik/traefik.dynamic.yml`, `templates/Caddyfile.tpl`).
+- [x] Wire `03_generate_secrets.sh` to render the appropriate config(s) based on `REVERSE_PROXY`.
+- [x] Validate generated files exist and log paths for the user.
 
 ---
 
@@ -38,15 +38,15 @@ Outcome: docker-compose supports mutually exclusive proxy profiles with all requ
 
 ### Story 2.1 – Add Traefik & Welcome Services
 
-- [ ] Introduce `proxy-traefik` profile with the Traefik definition from `file-change-map.md`.
-- [ ] Add `welcome-web` container mounting `./welcome` (profile `proxy-traefik`).
-- [ ] Create new volumes (`traefik-acme`, `traefik-config`) and mount them as specified.
+- [x] Introduce `proxy-traefik` profile with the Traefik definition from `file-change-map.md`.
+- [x] Add `welcome-web` container mounting `./welcome` (profile `proxy-traefik`).
+- [x] Create new volumes (`traefik-acme`, `traefik-config`) and mount them as specified.
 
 ### Story 2.2 – Gate Existing Caddy Service
 
-- [ ] Apply `profiles: ["proxy-caddy"]` to the Caddy service.
-- [ ] Ensure only the active proxy profile publishes ports 80/443/7687.
-- [ ] Remove any other host port exposes to prevent bypassing the selected proxy.
+- [x] Apply `profiles: ["proxy-caddy"]` to the Caddy service.
+- [x] Ensure only the active proxy profile publishes ports 80/443/7687.
+- [x] Remove any other host port exposes to prevent bypassing the selected proxy.
 
 ### Story 2.3 – Compose Validation
 
@@ -60,19 +60,19 @@ Outcome: Routing/auth data is structured and used to generate both proxy configs
 
 ### Story 3.1 – Convert Routing Table to Machine-Readable Form
 
-- [ ] Extract `service-routing-map.md` rows into `traefik/routing-map.yml` (YAML as per example).
-- [ ] Add parser in `scripts/03_generate_secrets.sh` or helper module to load the YAML.
+- [x] Extract `service-routing-map.md` rows into `traefik/routing-map.yml` (YAML as per example).
+- [x] Add parser in `scripts/03_generate_secrets.sh` or helper module to load the YAML.
 
 ### Story 3.2 – Generate Traefik Dynamic Config
 
-- [ ] Iterate routing map to create routers/services/middlewares (use `sample-scripts/traefik.dynamic.example.yml` as reference).
-- [ ] Ensure all basic-auth services consume `${XXX_USERNAME}`/`${XXX_PASSWORD_HASH}` variables.
-- [ ] Add TCP router for Neo4j Bolt with TLS passthrough.
+- [x] Iterate routing map to create routers/services/middlewares (use `sample-scripts/traefik.dynamic.example.yml` as reference).
+- [x] Ensure all basic-auth services consume `${XXX_USERNAME}`/`${XXX_PASSWORD_HASH}` variables.
+- [x] Add TCP router for Neo4j Bolt with TLS passthrough.
 
 ### Story 3.3 – Generate Caddyfile from Same Data
 
-- [ ] Render each hostname block from the routing map (preserve special cases like SearXNG headers).
-- [ ] Confirm parity with existing Caddyfile output via diff before deleting static version.
+- [x] Render each hostname block from the routing map (preserve special cases like SearXNG headers).
+- [x] Confirm parity with existing Caddyfile output via diff before deleting static version.
 
 ---
 
@@ -81,20 +81,20 @@ Outcome: install/update/start scripts honor proxy selection, generate configs, a
 
 ### Story 4.1 – Compose Profile Selection
 
-- [ ] Modify `scripts/install.sh` and `scripts/apply_update.sh` to append `proxy-caddy` or `proxy-traefik` to `COMPOSE_PROFILES`.
-- [ ] Ensure profile updates remain idempotent (no duplicate entries).
+- [x] Modify `scripts/install.sh` and `scripts/apply_update.sh` to append `proxy-caddy` or `proxy-traefik` to `COMPOSE_PROFILES`.
+- [x] Ensure profile updates remain idempotent (no duplicate entries).
 
 ### Story 4.2 – Service Launch Adjustments
 
-- [ ] Update `scripts/06_run_services.sh` to require the correct config files (see snippet in `file-change-map.md`) before running start scripts.
-- [ ] Integrate pre-flight validation: `caddy validate` or `traefik check --configfile /etc/traefik/traefik.yml`.
-- [ ] Update `start_services.py` to pass the proper `--profile` argument when invoking `docker compose`.
+- [x] Update `scripts/06_run_services.sh` to require the correct config files (see snippet in `file-change-map.md`) before running start scripts.
+- [x] Integrate pre-flight validation: `caddy validate` or `traefik check --configfile /etc/traefik/traefik.yml`.
+- [x] Update `start_services.py` to pass the proper `--profile` argument when invoking `docker compose`.
 
 ### Story 4.3 – Doctor & Update Preview Enhancements
 
-- [ ] Add proxy-aware health checks in `scripts/doctor.sh` (service running + config validation).
-- [ ] Modify `scripts/update_preview.sh` to check only the active proxy image.
-- [ ] When `TLS_MODE=local`, doctor should emit a reminder to trust the local CA.
+- [x] Add proxy-aware health checks in `scripts/doctor.sh` (service running + config validation).
+- [x] Modify `scripts/update_preview.sh` to check only the active proxy image.
+- [x] When `TLS_MODE=local`, doctor should emit a reminder to trust the local CA.
 
 ---
 
@@ -103,8 +103,8 @@ Outcome: User-facing artifacts reflect the new proxy/TLS capabilities and guide 
 
 ### Story 5.1 – Welcome Page & Final Report
 
-- [ ] Adapt `scripts/generate_welcome_page.sh` to record `proxy`, `tls_mode`, and `certificate_hint`.
-- [ ] Update `scripts/07_final_report.sh` to show scheme derived from `TLS_MODE` and highlight local CA trust steps when applicable.
+- [x] Adapt `scripts/generate_welcome_page.sh` to record `proxy`, `tls_mode`, and `certificate_hint`.
+- [x] Update `scripts/07_final_report.sh` to show scheme derived from `TLS_MODE` and highlight local CA trust steps when applicable.
 
 ### Story 5.2 – README / CLAUDE / Cloudflare Docs
 

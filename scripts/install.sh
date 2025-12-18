@@ -111,9 +111,17 @@ show_step 3 8 "Generating Secrets and Configuration"
 bash "$SCRIPT_DIR/03_generate_secrets.sh" || { log_error "Secret/Config Generation failed"; exit 1; }
 log_success "Secret/Config Generation complete!"
 
+# Ensure proxy profile is set based on REVERSE_PROXY
+load_env || true
+ensure_proxy_profile
+
 show_step 4 8 "Running Service Selection Wizard"
 bash "$SCRIPT_DIR/04_wizard.sh" || { log_error "Service Selection Wizard failed"; exit 1; }
 log_success "Service Selection Wizard complete!"
+
+# Re-run to capture any profile changes from the wizard
+load_env || true
+ensure_proxy_profile
 
 show_step 5 8 "Configure Services"
 bash "$SCRIPT_DIR/05_configure_services.sh" || { log_error "Configure Services failed"; exit 1; }

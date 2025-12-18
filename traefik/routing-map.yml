@@ -1,0 +1,176 @@
+[
+  {
+    "name": "n8n",
+    "host_var": "N8N_HOSTNAME",
+    "url": "http://n8n:5678",
+    "auth": "none"
+  },
+  {
+    "name": "open-webui",
+    "host_var": "WEBUI_HOSTNAME",
+    "url": "http://open-webui:8080",
+    "auth": "none"
+  },
+  {
+    "name": "flowise",
+    "host_var": "FLOWISE_HOSTNAME",
+    "url": "http://flowise:3001",
+    "auth": "none"
+  },
+  {
+    "name": "dify",
+    "host_var": "DIFY_HOSTNAME",
+    "url": "http://nginx:80",
+    "auth": "none"
+  },
+  {
+    "name": "ragapp",
+    "host_var": "RAGAPP_HOSTNAME",
+    "url": "http://ragapp:8000",
+    "auth": "basic",
+    "user_env": "RAGAPP_USERNAME",
+    "hash_env": "RAGAPP_PASSWORD_HASH"
+  },
+  {
+    "name": "ragflow",
+    "host_var": "RAGFLOW_HOSTNAME",
+    "url": "http://ragflow:80",
+    "auth": "none"
+  },
+  {
+    "name": "langfuse",
+    "host_var": "LANGFUSE_HOSTNAME",
+    "url": "http://langfuse-web:3000",
+    "auth": "none"
+  },
+  {
+    "name": "supabase",
+    "host_var": "SUPABASE_HOSTNAME",
+    "url": "http://kong:8000",
+    "auth": "none"
+  },
+  {
+    "name": "grafana",
+    "host_var": "GRAFANA_HOSTNAME",
+    "url": "http://grafana:3000",
+    "auth": "none"
+  },
+  {
+    "name": "waha",
+    "host_var": "WAHA_HOSTNAME",
+    "url": "http://waha:3000",
+    "auth": "none"
+  },
+  {
+    "name": "prometheus",
+    "host_var": "PROMETHEUS_HOSTNAME",
+    "url": "http://prometheus:9090",
+    "auth": "basic",
+    "user_env": "PROMETHEUS_USERNAME",
+    "hash_env": "PROMETHEUS_PASSWORD_HASH"
+  },
+  {
+    "name": "portainer",
+    "host_var": "PORTAINER_HOSTNAME",
+    "url": "http://portainer:9000",
+    "auth": "none"
+  },
+  {
+    "name": "postiz",
+    "host_var": "POSTIZ_HOSTNAME",
+    "url": "http://postiz:5000",
+    "auth": "none"
+  },
+  {
+    "name": "postgresus",
+    "host_var": "POSTGRESUS_HOSTNAME",
+    "url": "http://postgresus:4005",
+    "auth": "none"
+  },
+  {
+    "name": "letta",
+    "host_var": "LETTA_HOSTNAME",
+    "url": "http://letta:8283",
+    "auth": "none"
+  },
+  {
+    "name": "lightrag",
+    "host_var": "LIGHTRAG_HOSTNAME",
+    "url": "http://lightrag:9621",
+    "auth": "none"
+  },
+  {
+    "name": "weaviate",
+    "host_var": "WEAVIATE_HOSTNAME",
+    "url": "http://weaviate:8080",
+    "auth": "none"
+  },
+  {
+    "name": "qdrant",
+    "host_var": "QDRANT_HOSTNAME",
+    "url": "http://qdrant:6333",
+    "auth": "none"
+  },
+  {
+    "name": "comfyui",
+    "host_var": "COMFYUI_HOSTNAME",
+    "url": "http://comfyui:8188",
+    "auth": "basic",
+    "user_env": "COMFYUI_USERNAME",
+    "hash_env": "COMFYUI_PASSWORD_HASH"
+  },
+  {
+    "name": "libretranslate",
+    "host_var": "LT_HOSTNAME",
+    "url": "http://libretranslate:5000",
+    "auth": "basic",
+    "user_env": "LT_USERNAME",
+    "hash_env": "LT_PASSWORD_HASH"
+  },
+  {
+    "name": "neo4j",
+    "host_var": "NEO4J_HOSTNAME",
+    "url": "http://neo4j:7474",
+    "auth": "none"
+  },
+  {
+    "name": "neo4j-bolt",
+    "host_var": "NEO4J_HOSTNAME",
+    "address": "neo4j:7687",
+    "protocol": "tcp",
+    "tls_passthrough": true
+  },
+  {
+    "name": "paddleocr",
+    "host_var": "PADDLEOCR_HOSTNAME",
+    "url": "http://paddleocr:8080",
+    "auth": "basic",
+    "user_env": "PADDLEOCR_USERNAME",
+    "hash_env": "PADDLEOCR_PASSWORD_HASH"
+  },
+  {
+    "name": "docling",
+    "host_var": "DOCLING_HOSTNAME",
+    "url": "http://docling:5001",
+    "auth": "basic",
+    "user_env": "DOCLING_USERNAME",
+    "hash_env": "DOCLING_PASSWORD_HASH"
+  },
+  {
+    "name": "welcome",
+    "host_var": "WELCOME_HOSTNAME",
+    "url": "http://welcome-web:80",
+    "auth": "basic",
+    "user_env": "WELCOME_USERNAME",
+    "hash_env": "WELCOME_PASSWORD_HASH"
+  },
+  {
+    "name": "searxng",
+    "host_var": "SEARXNG_HOSTNAME",
+    "url": "http://searxng:8080",
+    "auth": "basic",
+    "user_env": "SEARXNG_USERNAME",
+    "hash_env": "SEARXNG_PASSWORD_HASH",
+    "type": "searxng"
+  }
+]

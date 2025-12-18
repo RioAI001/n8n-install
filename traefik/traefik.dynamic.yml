@@ -1,0 +1,376 @@
+# Generated from traefik/routing-map.yml
+http:
+  routers:
+    n8n:
+      rule: "Host(`${N8N_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "n8n-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+    open-webui:
+      rule: "Host(`${WEBUI_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "open-webui-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+    flowise:
+      rule: "Host(`${FLOWISE_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "flowise-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+    dify:
+      rule: "Host(`${DIFY_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "dify-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+    ragapp:
+      rule: "Host(`${RAGAPP_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "ragapp-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+      middlewares:
+        - "auth-ragapp"
+    ragflow:
+      rule: "Host(`${RAGFLOW_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "ragflow-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+    langfuse:
+      rule: "Host(`${LANGFUSE_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "langfuse-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+    supabase:
+      rule: "Host(`${SUPABASE_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "supabase-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+    grafana:
+      rule: "Host(`${GRAFANA_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "grafana-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+    waha:
+      rule: "Host(`${WAHA_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "waha-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+    prometheus:
+      rule: "Host(`${PROMETHEUS_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "prometheus-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+      middlewares:
+        - "auth-prometheus"
+    portainer:
+      rule: "Host(`${PORTAINER_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "portainer-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+    postiz:
+      rule: "Host(`${POSTIZ_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "postiz-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+    postgresus:
+      rule: "Host(`${POSTGRESUS_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "postgresus-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+    letta:
+      rule: "Host(`${LETTA_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "letta-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+    lightrag:
+      rule: "Host(`${LIGHTRAG_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "lightrag-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+    weaviate:
+      rule: "Host(`${WEAVIATE_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "weaviate-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+    qdrant:
+      rule: "Host(`${QDRANT_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "qdrant-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+    comfyui:
+      rule: "Host(`${COMFYUI_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "comfyui-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+      middlewares:
+        - "auth-comfyui"
+    libretranslate:
+      rule: "Host(`${LT_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "libretranslate-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+      middlewares:
+        - "auth-libretranslate"
+    neo4j:
+      rule: "Host(`${NEO4J_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "neo4j-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+    paddleocr:
+      rule: "Host(`${PADDLEOCR_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "paddleocr-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+      middlewares:
+        - "auth-paddleocr"
+    docling:
+      rule: "Host(`${DOCLING_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "docling-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+      middlewares:
+        - "auth-docling"
+    welcome:
+      rule: "Host(`${WELCOME_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "welcome-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+      middlewares:
+        - "auth-welcome"
+    searxng:
+      rule: "Host(`${SEARXNG_HOSTNAME}`)"
+      entryPoints:
+        - "websecure"
+      service: "searxng-svc"
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER:-acme}"
+      middlewares:
+        - "auth-searxng"
+        - "searxng-headers"
+  services:
+    n8n-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://n8n:5678"
+    open-webui-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://open-webui:8080"
+    flowise-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://flowise:3001"
+    dify-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://nginx:80"
+    ragapp-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://ragapp:8000"
+    ragflow-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://ragflow:80"
+    langfuse-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://langfuse-web:3000"
+    supabase-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://kong:8000"
+    grafana-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://grafana:3000"
+    waha-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://waha:3000"
+    prometheus-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://prometheus:9090"
+    portainer-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://portainer:9000"
+    postiz-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://postiz:5000"
+    postgresus-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://postgresus:4005"
+    letta-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://letta:8283"
+    lightrag-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://lightrag:9621"
+    weaviate-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://weaviate:8080"
+    qdrant-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://qdrant:6333"
+    comfyui-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://comfyui:8188"
+    libretranslate-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://libretranslate:5000"
+    neo4j-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://neo4j:7474"
+    paddleocr-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://paddleocr:8080"
+    docling-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://docling:5001"
+    welcome-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://welcome-web:80"
+    searxng-svc:
+      loadBalancer:
+        servers:
+          -
+            url: "http://searxng:8080"
+  middlewares:
+    auth-ragapp:
+      basicAuth:
+        users:
+          - "${RAGAPP_USERNAME:?}:${RAGAPP_PASSWORD_HASH:?}"
+    auth-prometheus:
+      basicAuth:
+        users:
+          - "${PROMETHEUS_USERNAME:?}:${PROMETHEUS_PASSWORD_HASH:?}"
+    auth-comfyui:
+      basicAuth:
+        users:
+          - "${COMFYUI_USERNAME:?}:${COMFYUI_PASSWORD_HASH:?}"
+    auth-libretranslate:
+      basicAuth:
+        users:
+          - "${LT_USERNAME:?}:${LT_PASSWORD_HASH:?}"
+    auth-paddleocr:
+      basicAuth:
+        users:
+          - "${PADDLEOCR_USERNAME:?}:${PADDLEOCR_PASSWORD_HASH:?}"
+    auth-docling:
+      basicAuth:
+        users:
+          - "${DOCLING_USERNAME:?}:${DOCLING_PASSWORD_HASH:?}"
+    auth-welcome:
+      basicAuth:
+        users:
+          - "${WELCOME_USERNAME:?}:${WELCOME_PASSWORD_HASH:?}"
+    auth-searxng:
+      basicAuth:
+        users:
+          - "${SEARXNG_USERNAME:?}:${SEARXNG_PASSWORD_HASH:?}"
+    searxng-headers:
+      headers:
+        customResponseHeaders:
+          Strict-Transport-Security: "max-age=31536000"
+          X-Content-Type-Options: "nosniff"
+          Referrer-Policy: "no-referrer"
+          Permissions-Policy: "accelerometer=(),camera=(),geolocation=(),gyroscope=(),magnetometer=(),microphone=(),payment=(),usb=()"
+tcp:
+  routers:
+    neo4j-bolt:
+      rule: "HostSNI(`${NEO4J_HOSTNAME}`)"
+      entryPoints:
+        - "bolt"
+      service: "neo4j-bolt-svc"
+      tls:
+        passthrough: true
+  services:
+    neo4j-bolt-svc:
+      loadBalancer:
+        servers:
+          -
+            address: "neo4j:7687"

@@ -39,6 +39,9 @@ bash "$SCRIPT_DIR/03_generate_secrets.sh" --update || {
     exit 1
 }
 log_success ".env file updated successfully."
+# Ensure proxy profile reflects REVERSE_PROXY after updates
+load_env || true
+ensure_proxy_profile
 # --- End of .env update by 03_generate_secrets.sh ---
 
 # --- Run Service Selection Wizard FIRST to get updated profiles --- 
@@ -48,6 +51,9 @@ bash "$SCRIPT_DIR/04_wizard.sh" || {
     exit 1
 }
 log_success "Service selection updated."
+# Re-sync proxy profile in COMPOSE_PROFILES after wizard changes
+load_env || true
+ensure_proxy_profile
 # --- End of Service Selection Wizard ---
 
 # --- Configure Services (prompts and .env updates) ---

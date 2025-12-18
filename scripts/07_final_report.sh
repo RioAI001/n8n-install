@@ -25,6 +25,7 @@ init_paths
 
 # Load environment variables from .env file
 load_env || exit 1
+BASE_SCHEME=$([[ "${TLS_MODE}" == "public" || "${TLS_MODE}" == "local" ]] && echo "https" || echo "http")
 
 # Generate welcome page data
 if [ -f "$SCRIPT_DIR/generate_welcome_page.sh" ]; then
@@ -63,9 +64,14 @@ print_section "Welcome Page"
 echo ""
 echo -e "  ${WHITE}All your service credentials are available here:${NC}"
 echo ""
-print_credential "URL" "https://${WELCOME_HOSTNAME:-welcome.${USER_DOMAIN_NAME}}"
+print_credential "URL" "${BASE_SCHEME}://${WELCOME_HOSTNAME:-welcome.${USER_DOMAIN_NAME}}"
 print_credential "Username" "${WELCOME_USERNAME:-<not_set>}"
 print_credential "Password" "${WELCOME_PASSWORD:-<not_set>}"
+print_credential "Proxy" "${REVERSE_PROXY:-caddy}"
+print_credential "TLS Mode" "${TLS_MODE:-public}"
+if [[ "${TLS_MODE}" == "local" ]]; then
+    print_credential "Certificate" "${LOCAL_CA_CERT:-certs/local-ca.pem} (install/trust on host)"
+fi
 echo ""
 echo -e "  ${DIM}The Welcome Page shows all installed services with their${NC}"
 echo -e "  ${DIM}hostnames, credentials, and internal URLs.${NC}"

@@ -192,20 +192,35 @@ else
     print_info "Skipping DNS checks (no domain configured)"
 fi
 
-# Check SSL (Caddy)
-log_subheader "SSL/Caddy"
+# Proxy health
+log_subheader "Proxy"
 
-if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "caddy"; then
-    count_ok "Caddy container is running"
-
-    # Check if Caddy can reach the config
-    if docker exec caddy caddy validate --config /etc/caddy/Caddyfile &> /dev/null; then
-        count_ok "Caddyfile is valid"
+if [[ "${REVERSE_PROXY:-caddy}" == "traefik" ]]; then
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^traefik$"; then
+        count_ok "Traefik container is running"
+        if docker exec traefik traefik check --configfile /etc/traefik/traefik.yml >/dev/null 2>&1; then
+            count_ok "Traefik configuration is valid"
+        else
+            count_warning "Traefik configuration validation failed"
+        fi
     else
-        count_warning "Caddyfile validation failed (may be fine if using default)"
+        count_warning "Traefik container is not running"
     fi
 else
-    count_warning "Caddy container is not running"
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^caddy$"; then
+        count_ok "Caddy container is running"
+        if docker exec caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
+            count_ok "Caddyfile is valid"
+        else
+            count_warning "Caddyfile validation failed"
+        fi
+    else
+        count_warning "Caddy container is not running"
+    fi
+fi
+
+if [[ "${TLS_MODE:-public}" == "local" ]]; then
+    count_warning "TLS_MODE=local set — remember to trust the local CA on your host."
 fi
 
 # Check key services
@@ -227,6 +242,7 @@ check_service() {
 check_service "postgres" "5432"
 check_service "redis" "6379"
 check_service "caddy" "80"
+check_service "traefik" "80"
 
 if is_profile_active "n8n"; then
     check_service "n8n" "5678"

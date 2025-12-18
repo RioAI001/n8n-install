@@ -363,6 +363,31 @@ require_file() {
     fi
 }
 
+# Get the currently selected proxy (defaults to caddy)
+current_proxy() {
+    local proxy="${REVERSE_PROXY:-caddy}"
+    echo "$proxy"
+}
+
+# Get the active TLS mode (defaults to public)
+current_tls_mode() {
+    local tls_mode="${TLS_MODE:-public}"
+    echo "$tls_mode"
+}
+
+# Require proxy configuration files to exist based on selection
+require_proxy_config() {
+    local proxy_choice
+    proxy_choice=$(current_proxy)
+
+    if [[ "$proxy_choice" == "traefik" ]]; then
+        require_file "$PROJECT_ROOT/traefik/traefik.yml" "Missing Traefik static config at traefik/traefik.yml"
+        require_file "$PROJECT_ROOT/traefik/traefik.dynamic.yml" "Missing Traefik dynamic config at traefik/traefik.dynamic.yml"
+    else
+        require_file "$PROJECT_ROOT/Caddyfile" "Missing Caddyfile in project root"
+    fi
+}
+
 # Ensure a file exists, create empty file if it doesn't
 # Usage: ensure_file_exists "/path/to/file"
 ensure_file_exists() {
@@ -387,6 +412,63 @@ update_compose_profiles() {
         rm -f "${env_file}.bak"
     fi
     echo "COMPOSE_PROFILES=${profiles}" >> "$env_file"
+}
+
+# Normalize and de-duplicate a comma-separated profiles list
+normalize_profiles() {
+    local profiles="$1"
+    local IFS=',' read -ra parts <<< "$profiles"
+    local -A seen=()
+    local ordered=()
+    for p in "${parts[@]}"; do
+        [[ -z "$p" ]] && continue
+        if [[ -z "${seen[$p]}" ]]; then
+            ordered+=("$p")
+            seen[$p]=1
+        fi
+    done
+    (IFS=','; echo "${ordered[*]}")
+}
+
+# Ensure the correct proxy profile is present and the alternative proxy profile is removed
+# Usage: ensure_proxy_profile [env_file]
+ensure_proxy_profile() {
+    local env_file="${1:-$ENV_FILE}"
+    ensure_file_exists "$env_file"
+
+    local current_profiles
+    current_profiles=$(read_env_var "COMPOSE_PROFILES" "$env_file")
+
+    local proxy_choice="${REVERSE_PROXY:-caddy}"
+    local target_profile="proxy-caddy"
+    local other_profile="proxy-traefik"
+    if [[ "$proxy_choice" == "traefik" ]]; then
+        target_profile="proxy-traefik"
+        other_profile="proxy-caddy"
+    fi
+
+    local IFS=',' read -ra parts <<< "$current_profiles"
+    local -A seen=()
+    local rebuilt=()
+
+    for p in "${parts[@]}"; do
+        [[ -z "$p" ]] && continue
+        if [[ "$p" == "$other_profile" ]]; then
+            continue
+        fi
+        if [[ -z "${seen[$p]}" ]]; then
+            rebuilt+=("$p")
+            seen[$p]=1
+        fi
+    done
+
+    if [[ -z "${seen[$target_profile]}" ]]; then
+        rebuilt+=("$target_profile")
+    fi
+
+    local normalized
+    normalized=$(normalize_profiles "$(IFS=','; echo "${rebuilt[*]}")")
+    update_compose_profiles "$normalized" "$env_file"
 }
 
 #=============================================================================
@@ -445,13 +527,57 @@ gen_base64() {
     openssl rand -base64 "$bytes" | head -c "$length"
 }
 
-# Generate bcrypt hash using Caddy
+# Ensure Python bcrypt is available (install via pip3 if missing)
+ensure_python_bcrypt() {
+    if python3 - <<'PY' >/dev/null 2>&1
+import importlib.util, sys
+sys.exit(0 if importlib.util.find_spec("bcrypt") else 1)
+PY
+    then
+        return 0
+    fi
+
+    if command -v pip3 >/dev/null 2>&1; then
+        log_info "Installing Python bcrypt module (pip3 install bcrypt)..."
+        if ! pip3 install --quiet bcrypt >/dev/null 2>&1; then
+            log_warning "Retrying bcrypt installation without --quiet for visibility..."
+            pip3 install bcrypt >/dev/null 2>&1 || true
+        fi
+    fi
+
+    if python3 - <<'PY' >/dev/null 2>&1
+import importlib.util, sys
+sys.exit(0 if importlib.util.find_spec("bcrypt") else 1)
+PY
+    then
+        return 0
+    fi
+
+    log_error "Python module 'bcrypt' is required. Install with: pip3 install bcrypt"
+    exit 1
+}
+
+# Generate bcrypt hash using Python bcrypt helper
 # Usage: hash=$(generate_bcrypt_hash "plaintext_password")
 generate_bcrypt_hash() {
     local plaintext="$1"
-    if [[ -n "$plaintext" ]]; then
-        caddy hash-password --algorithm bcrypt --plaintext "$plaintext" 2>/dev/null
+    if [[ -z "$plaintext" ]]; then
+        return 0
     fi
+
+    ensure_python_bcrypt
+
+    python3 - "$plaintext" <<'PY'
+import bcrypt
+import sys
+
+password = sys.argv[1]
+if not password:
+    sys.exit(1)
+
+hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))
+print(hashed.decode())
+PY
 }
 
 #=============================================================================

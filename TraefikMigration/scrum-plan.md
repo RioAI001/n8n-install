@@ -38,15 +38,15 @@ Outcome: docker-compose supports mutually exclusive proxy profiles with all requ
 
 ### Story 2.1 – Add Traefik & Welcome Services
 
-- [ ] Introduce `proxy-traefik` profile with the Traefik definition from `file-change-map.md`.
-- [ ] Add `welcome-web` container mounting `./welcome` (profile `proxy-traefik`).
-- [ ] Create new volumes (`traefik-acme`, `traefik-config`) and mount them as specified.
+- [x] Introduce `proxy-traefik` profile with the Traefik definition from `file-change-map.md`.
+- [x] Add `welcome-web` container mounting `./welcome` (profile `proxy-traefik`).
+- [x] Create new volumes (`traefik-acme`, `traefik-config`) and mount them as specified.
 
 ### Story 2.2 – Gate Existing Caddy Service
 
-- [ ] Apply `profiles: ["proxy-caddy"]` to the Caddy service.
-- [ ] Ensure only the active proxy profile publishes ports 80/443/7687.
-- [ ] Remove any other host port exposes to prevent bypassing the selected proxy.
+- [x] Apply `profiles: ["proxy-caddy"]` to the Caddy service.
+- [x] Ensure only the active proxy profile publishes ports 80/443/7687.
+- [x] Remove any other host port exposes to prevent bypassing the selected proxy.
 
 ### Story 2.3 – Compose Validation
 

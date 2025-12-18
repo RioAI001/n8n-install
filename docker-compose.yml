@@ -1,6 +1,13 @@
 volumes:
   caddy-config:
   caddy-data:
+  traefik-acme:
+  traefik-config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/traefik
   comfyui_data:
   docling_cache:
   flowise:
@@ -258,6 +265,7 @@ services:
   caddy:
     container_name: caddy
     image: docker.io/library/caddy:2-alpine
+    profiles: ["proxy-caddy"]
     ports:
       - "80:80"
       - "443:443"
@@ -321,6 +329,51 @@ services:
       options:
         max-size: "1m"
         max-file: "1"
+
+  traefik:
+    container_name: traefik
+    image: traefik:v3.1
+    profiles: ["proxy-traefik"]
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.file.filename=/etc/traefik/traefik.dynamic.yml"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.bolt.address=:7687"
+      - "--certificatesresolvers.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.acme.storage=/acme/acme.json"
+      - "--certificatesresolvers.acme.httpchallenge.entrypoint=web"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "7687:7687"
+    restart: unless-stopped
+    volumes:
+      - traefik-config:/etc/traefik:ro
+      - traefik-acme:/acme
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - TRAEFIK_CERT_RESOLVER=${TRAEFIK_CERT_RESOLVER:-acme}
+    healthcheck:
+      test: ["CMD", "traefik", "check", "--configfile", "/etc/traefik/traefik.yml"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  welcome-web:
+    image: nginx:alpine
+    container_name: welcome-web
+    profiles: ["proxy-traefik"]
+    restart: unless-stopped
+    volumes:
+      - ./welcome:/usr/share/nginx/html:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
 
   cloudflared:
     image: cloudflare/cloudflared:latest
